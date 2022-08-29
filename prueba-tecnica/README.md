@@ -1,4 +1,4 @@
-# Desafío SRE/DevOps Engineer Dafiti
+# Desafío SRE/DevOps Engineer.
 
 Hola candidat@, a continuación te presentamos el siguiente desafio, el cual se compone en tres partes:
 
