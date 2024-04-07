@@ -1,0 +1,63 @@
+Vagrant.configure("2") do |config|
+  config.vm.define "ufw" do |servidor_1_ufw|
+    servidor_1_ufw.vm.box = "ubuntu/noble64"
+    servidor_1_ufw.vm.network "private_network", ip: "192.168.50.3"
+    servidor_1_ufw.vm.hostname = "servidor-1-ufw"
+    servidor_1_ufw.vm.provider "virtualbox" do |vb|
+      vb.memory = "1024"
+      vb.cpus = 2
+    end
+
+    servidor_1_ufw.vm.provision "shell", inline: <<-SHELL
+      apt-get update
+      sudo apt-get dist-upgrade -y
+      sudo apt --fix-broken install
+      sudo apt remove ufw iptables-persistent
+      sudo apt clean
+      sudo apt autoclean
+      sudo apt install -y ufw iptables-persistent netfilter-persistent --reinstall
+      systemctl restart snapd.service || true                                        # Reiniciar el servicio snapd si es necesario
+      sudo ufw default deny incoming
+      sudo ufw allow 80/tcp                                                          # Permitir tráfico HTTP
+      sudo ufw allow 22/tcp                                                          # Permitir tráfico SSH
+      sudo ufw allow 990/tcp                                                         # Permitir tráfico FTP seguro (control)
+      sudo ufw allow 989/tcp                                                         # Permitir tráfico FTP seguro (datos)
+      sudo ufw allow OpenSSH
+      sudo ufw allow ftp                                                             # Permitir el tráfico FTP
+      sudo ufw route allow proto tcp from any to any port 21 to 192.168.50.2 port 21 # Redirigir el tráfico entrante del puerto 21 al servidor FTP (192.168.50.2)
+      sudo ufw --force enable
+      ufw reload
+      sudo iptables -t nat -A PREROUTING -p tcp --dport 990 -j DNAT --to-destination 192.168.50.2:990
+      sudo iptables -t nat -A PREROUTING -p tcp --dport 989 -j DNAT --to-destination 192.168.50.2:989
+      sudo iptables-save > /etc/iptables/rules.v4
+      sudo ufw status verbose
+    SHELL
+  end
+
+  config.vm.define "vsftpd" do |servidor_2_vsftpd_seguro|
+    servidor_2_vsftpd_seguro.vm.box = "ubuntu/noble64"
+    servidor_2_vsftpd_seguro.vm.network "private_network", ip: "192.168.50.2"
+    servidor_2_vsftpd_seguro.vm.hostname = "servidor-2-vsftpd-seguro"
+    servidor_2_vsftpd_seguro.vm.provider "virtualbox" do |vb|
+      vb.memory = "1024"
+      vb.cpus = 2
+    end
+
+    servidor_2_vsftpd_seguro.vm.provision "shell", inline: <<-SHELL
+      sudo canonical-livepatch enable-esm
+      sudo apt-get update
+      sudo apt-get install -y vsftpd
+      sudo apt-get upgrade -y
+
+      # Configuración de VSFTPD
+      sed -i 's/#write_enable=YES/write_enable=YES/' /etc/vsftpd.conf
+      sed -i 's/#local_umask=022/local_umask=022/' /etc/vsftpd.conf
+
+      sudo adduser --disabled-password --gecos "" cristian
+      echo "cristian:123" | sudo chpasswd
+
+      sudo service vsftpd restart # Reiniciar VSFTPD para aplicar los cambios
+      sudo reboot
+    SHELL
+  end
+end
