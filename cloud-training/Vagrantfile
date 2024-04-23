@@ -1,10 +1,16 @@
-require_relative 'lib/server'
-require_relative 'lib/ufw'
-require_relative 'lib/vsftpd'
+# Vagrantfile
+
+# Obtener la lista de archivos en el directorio 'lib'
+files = Dir["lib/*"]
+
+# Iterar sobre cada archivo y cargarlo utilizando require_relative
+files.each do |file|
+  require_relative file
+end
 
 servers = [
-  UfwServer.new("ufw", "192.168.50.3"),
-  VsftpdServer.new("vsftpd", "192.168.50.2")
+  Terraform.new("terraform", "192.168.50.2"),
+  Kubernetes.new("kubernetes", "192.168.50.10")
 ]
 
 def setup_and_provision(config, server)
@@ -13,7 +19,7 @@ def setup_and_provision(config, server)
     srv.vm.network "private_network", ip: server.ip_address
     srv.vm.hostname = server.name
     srv.vm.provider "virtualbox" do |vb|
-      vb.memory = "1024"
+      vb.memory = "2048"
       vb.cpus = 2
     end
     srv.vm.provision "shell", inline: server.provision_commands
@@ -21,6 +27,9 @@ def setup_and_provision(config, server)
 end
 
 Vagrant.configure("2") do |config|
+  # Configuración para actualizar las Guest Additions
+  config.vbguest.auto_update = true
+
   servers.each do |server|
     setup_and_provision(config, server)
   end
